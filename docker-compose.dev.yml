@@ -1,0 +1,43 @@
+services:
+  # Agent service
+
+  # Backend services
+
+  # Database service
+  pg:
+    image: postgres:latest
+    container_name: postDB
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: pippo123
+      POSTGRES_DB: BorysDB
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+    
+    # Grafana service
+
+volumes:
+  postgres_data:
+    name: borys_pg_data
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    # internal: true
+    ipam:
+      config:
+        - subnet: "192.168.10.0/24"
+        - gateway: "192.168.10.1"
+  log:
+    driver: bridge
+  
+  agents:
+    driver: bridge
+    
+
+  
