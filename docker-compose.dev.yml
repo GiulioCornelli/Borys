@@ -4,25 +4,50 @@ services:
   # Backend services
 
   # Database service
-  pg:
-    image: postgres:latest
-    container_name: postDB
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: pippo123
-      POSTGRES_DB: BorysDB
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - backend
+  # pg:
+  #   image: postgres:latest
+  #   container_name: postDB
+  #   environment:
+  #     POSTGRES_USER: admin
+  #     POSTGRES_PASSWORD: pippo123
+  #     POSTGRES_DB: BorysDB
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - backend
     
+    #EMQX Brocker mqtt
+  emqx1:
+    image: emqx:latest
+    container_name: emqx_broker1
+    environment:
+      EMQX_NODE__NAME: "emqx1@emqx_broker1"
+
+      # Credenziali di default per la Dashboard web
+      EMQX_DASHBOARD__DEFAULT_USERNAME: "${EMQX_ADMIN_USER}"
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "${EMQX_ADMIN_PASSWORD}"
+  
+    ports:
+      - "1883:1883"    # In fase di produzione toglere 
+      - "8883:8883"    # In fase di produzione toglere
+      - "18083:18083"  # La Dashboard di amministrazione (Web GUI)
+    # volumes:
+    #   - emqx_data:/opt/emqx/data # attivare in produzione
+    networks:
+      - emqx-network
+
     # Grafana service
 
 volumes:
+
   postgres_data:
     name: borys_pg_data
+    driver: local
+
+  emqx_data:
+    name: borys_emqx_data
     driver: local
 
 networks:
@@ -38,6 +63,8 @@ networks:
   
   agents:
     driver: bridge
-    
-
+  
+  # Rete emqx 
+  emqx-network:
+    driver: bridge
   
