@@ -2,7 +2,7 @@ import paho.mqtt.client as mqtt
 
 BROKER = "localhost"
 PORT = 1883
-TOPIC = "/casa/#"
+TOPIC = "casa/#"
 
 def on_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with reason code {reason_code}")
