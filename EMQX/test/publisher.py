@@ -93,7 +93,7 @@ def on_message(client, userdata, msg):
         state = cond_state[full_name]
 
         if "set_temp" in payload:
-            state["temperature"] = float(payload["set_temp"])
+            state["temp"] = float(payload["set_temp"])
         if "mode" in payload:
             state["mode"] = payload["mode"]
         if "fan_speed" in payload:
@@ -128,7 +128,7 @@ def apply_drift():
             if time.monotonic() - last_command_time[cond] < COMMAND_COOLDOWN:
                 continue
             drift = random.choice([-0.1, 0.1])
-            cond_state[cond]["temperature"] = round(cond_state[cond]["temperature"] + drift, 1)
+            cond_state[cond]["temp"] = round(cond_state[cond]["temp"] + drift, 1)
 
 
 # ── Pubblicazione telemetria ──
@@ -137,6 +137,9 @@ def publish_telemetry(client):
     Cicla tutti i condizionatori e pubblica lo stato su
     casa/{stanza}/{cond}/telemetry saltando quelli in cooldown.
     """
+    print("\n" + "─" * 60)
+    print(f"📡 CICLO TELEMETRIA ({TELEMETRY_INTERVAL}s)")
+    print("─" * 60)
     apply_drift()
     now = time.monotonic()
     for stanza, conds in STANZE.items():
