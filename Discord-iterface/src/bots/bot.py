@@ -15,11 +15,26 @@ class BorysBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        extensions = ["cogs.events", "cogs.errors", "cogs.command"]
+        extensions = [
+            "src.bots.cogs.events",
+            "src.bots.cogs.errors",
+            "src.bots.cogs.command",
+        ]
         for ext in extensions:
             await self.load_extension(ext)
             logger.info("Modulo caricato: %s", ext)
 
+
+
+def Run_Bot():
+    token = os.getenv("BORYS_TOKEN", "")
+    if not token:
+        logger.error("ERRORE: BORYS_TOKEN non impostato nel .env")
+        return
+
+    _setup_logging()
+    bot = BorysBot()
+    bot.run(token)
 
 
 async def start_bot():
@@ -34,6 +49,8 @@ async def start_bot():
 
 
 def _setup_logging():
+    if logger.handlers:
+        return
     _handler = logging.StreamHandler()
     _handler.setFormatter(
         logging.Formatter(
