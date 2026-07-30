@@ -1,36 +1,21 @@
 package com.agents;
 
-import java.util.function.Supplier;
-
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.tool.ToolProvider;
 import io.quarkiverse.langchain4j.RegisterAiService;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 import jakarta.inject.Singleton;
 
-@RegisterAiService(toolProviderSupplier = ControllerAgent.ControllerToolSupplier.class)
+@RegisterAiService
 @Singleton
 public interface ControllerAgent {
 
     @SystemMessage("""
         Sei un assistente specializzato nel controllo di dispositivi IoT.
-        Hai a disposizione strumenti per modificare e settare valori (set_, exec_).
+        Hai a disposizione vari strumenti, ma PUOI utilizzare SOLO quelli che
+        iniziano con "set_" o "exec_". Ignora tutti gli altri.
         Rispondi in modo chiaro e conciso.
     """)
+    @McpToolBox("borysmcp")
     String chat(@UserMessage String message);
-
-    @Singleton
-    class ControllerToolSupplier implements Supplier<ToolProvider> {
-
-        @Inject
-        @Named("controllerTool")
-        ToolProvider controllerTool;
-
-        @Override
-        public ToolProvider get() {
-            return controllerTool;
-        }
-    }
 }

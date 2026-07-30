@@ -14,7 +14,7 @@ quarkus:
     
     mcp:
       borysmcp:
-        transport-type: http
+        transport-type: streamable-http
         url: "http://localhost:9100/mcp/v1"
         log-requests: true
         log-responses: true

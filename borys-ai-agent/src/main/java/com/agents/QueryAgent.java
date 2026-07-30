@@ -1,36 +1,21 @@
 package com.agents;
 
-import java.util.function.Supplier;
-
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
-import dev.langchain4j.service.tool.ToolProvider;
 import io.quarkiverse.langchain4j.RegisterAiService;
-import jakarta.inject.Inject;
-import jakarta.inject.Named;
+import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 import jakarta.inject.Singleton;
 
-@RegisterAiService(toolProviderSupplier = QueryAgent.QueryToolSupplier.class)
+@RegisterAiService
 @Singleton
 public interface QueryAgent {
 
     @SystemMessage("""
         Sei un assistente specializzato nella lettura di dati da dispositivi IoT.
-        Hai a disposizione strumenti per ottenere dati (get_, read_).
+        Hai a disposizione vari strumenti, ma PUOI utilizzare SOLO quelli che
+        iniziano con "get_" o "read_". Ignora tutti gli altri.
         Rispondi in modo chiaro e conciso.
     """)
+    @McpToolBox("borysmcp")
     String chat(@UserMessage String message);
-
-    @Singleton
-    class QueryToolSupplier implements Supplier<ToolProvider> {
-
-        @Inject
-        @Named("queryTool")
-        ToolProvider queryTool;
-
-        @Override
-        public ToolProvider get() {
-            return queryTool;
-        }
-    }
 }

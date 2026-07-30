@@ -5,9 +5,10 @@ import com.Tools.NameTool;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
+import io.quarkiverse.langchain4j.ToolBox;
 import jakarta.inject.Singleton;
 
-@RegisterAiService(tools = NameTool.class)
+@RegisterAiService
 @Singleton
 public interface RouterAgent {
 
@@ -37,6 +38,7 @@ public interface RouterAgent {
         Sei un assistente amichevole. Quando ti viene chiesto il tuo nome,
         usa il tool getName per rispondere.
     """)
+    @ToolBox(NameTool.class)
     String sendYourName(@UserMessage String message);
 
 }
