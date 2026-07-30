@@ -1,0 +1,9 @@
+quarkus:
+  http:
+    port: 9100
+  mcp:
+    server:
+      http:
+        root-path: /mcp/v1
+      stdio:
+        enabled: false
