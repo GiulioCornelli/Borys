@@ -2,6 +2,8 @@ quarkus:
   
   http:
     port: 9090
+    cors:
+      enabled: true
 
   langchain4j:
     ollama:

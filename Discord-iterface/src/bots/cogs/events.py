@@ -40,7 +40,7 @@ class EventsCog(commands.Cog):
         
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post("http://localhost:9090/api/agente1", content=message.content, headers={"Content-Type": "text/plain"})
+                resp = await client.post("http://localhost:9090/api/chat", content=message.content, headers={"Content-Type": "text/plain"})
                 resp.raise_for_status()
                 response_text = resp.text
                 logger.info(response_text)

@@ -1,9 +1,9 @@
 quarkus:
   http:
     port: 9100
+    cors:
+      enabled: true
   mcp:
     server:
       http:
         root-path: /mcp/v1
-      stdio:
-        enabled: false
