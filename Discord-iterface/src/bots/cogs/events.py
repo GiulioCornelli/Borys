@@ -39,14 +39,18 @@ class EventsCog(commands.Cog):
             return
         
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post("http://localhost:9900/api/prova", json={"message": message.content})
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post("http://localhost:9090/api/agente1", content=message.content, headers={"Content-Type": "text/plain"})
                 resp.raise_for_status()
-                data = resp.json()
-                logger.info(data)
-                await message.channel.send(data["response"])
+                response_text = resp.text
+                logger.info(response_text)
+                await message.channel.send(response_text)
         except httpx.ConnectError:
             logger.error("Errore di connessione")
+            await message.channel.send("Ci dispiace c'è statu un errore, risolveremo al più presto.")
+
+        except httpx.ReadTimeout:
+            logger.error("L'agente ci ha messo troppo")
             await message.channel.send("Ci dispiace c'è statu un errore, risolveremo al più presto.")
 
 
