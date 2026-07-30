@@ -10,27 +10,27 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 
-@RegisterAiService(toolProviderSupplier = ControllerAgent.ControllerToolSupplier.class)
+@RegisterAiService(toolProviderSupplier = QueryAgent.QueryToolSupplier.class)
 @Singleton
-public interface ControllerAgent {
+public interface QueryAgent {
 
     @SystemMessage("""
-        Sei un assistente specializzato nel controllo di dispositivi IoT.
-        Hai a disposizione strumenti per modificare e settare valori (set_, exec_).
+        Sei un assistente specializzato nella lettura di dati da dispositivi IoT.
+        Hai a disposizione strumenti per ottenere dati (get_, read_).
         Rispondi in modo chiaro e conciso.
     """)
     String chat(@UserMessage String message);
 
     @Singleton
-    class ControllerToolSupplier implements Supplier<ToolProvider> {
+    class QueryToolSupplier implements Supplier<ToolProvider> {
 
         @Inject
-        @Named("controllerTool")
-        ToolProvider controllerTool;
+        @Named("queryTool")
+        ToolProvider queryTool;
 
         @Override
         public ToolProvider get() {
-            return controllerTool;
+            return queryTool;
         }
     }
 }
