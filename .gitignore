@@ -44,3 +44,7 @@ Thumbs.db
 
 # OpenCode skills
 .agents
+
+# Quarkus
+
+.quarkus
