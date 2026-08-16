@@ -1,59 +1,149 @@
 # borys-mcp-server
 
-This project uses Quarkus, the Supersonic Subatomic Java Framework.
+Server MCP (Model Context Protocol) basato su Quarkus. Espone come tool MCP i dispositivi IoT di casa Borys (luci, interruttori, climatizzazione, sensori, energia) affinché possano essere interrogati e comandati dall'agente AI (`borys-ai-agent`).
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+Il server implementa il trasporto **Streamable HTTP** su:
 
-## Running the application in dev mode
-
-You can run your application in dev mode that enables live coding using:
-
-```shell script
-./mvnw quarkus:dev
+```
+http://localhost:9100/mcp/v1
 ```
 
-> **_NOTE:_**  Quarkus now ships with a Dev UI, which is available in dev mode only at <http://localhost:8080/q/dev/>.
+## Struttura del progetto
 
-## Packaging and running the application
-
-The application can be packaged using:
-
-```shell script
-./mvnw package
+```
+src/main/java/org/ai/borys/mcp/
+├── climate/   → temperatura, ventola e zone
+├── device/    → gestione generica dei dispositivi
+├── light/     → luci
+├── power/     → consumi energetici
+├── relay/     → interruttori (il package si chiama "relay" perché "switch" è una parola riservata in Java)
+└── sensor/    → sensori
 ```
 
-It produces the `quarkus-run.jar` file in the `target/quarkus-app/` directory.
-Be aware that it’s not an _über-jar_ as the dependencies are copied into the `target/quarkus-app/lib/` directory.
+Ogni package contiene una coppia di classi, una per ogni dispositivo IoT:
 
-The application is now runnable using `java -jar target/quarkus-app/quarkus-run.jar`.
+- **`XxxTools`** — vera esposizione dei tool. Contiene i metodi annotati con `@Tool`, i parametri con `@ToolArg` e le descrizioni in italiano che l'agente AI vede. È un sottile adattatore verso il protocollo MCP.
+- **`XxxService`** — vera logica di business. Contiene l'implementazione concreta (lettura dati, invio comandi, ecc.).
 
-If you want to build an _über-jar_, execute the following command:
+### Esempio: il package `light`
 
-```shell script
-./mvnw package -Dquarkus.package.jar.type=uber-jar
+```java
+// LightService.java — logica di business
+@Singleton
+public class LightService {
+
+    String getStatus() {
+        return "accesa";
+    }
+
+    String setStatus(String value) {
+        return "luce impostata a " + value;
+    }
+}
 ```
 
-The application, packaged as an _über-jar_, is now runnable using `java -jar target/*-runner.jar`.
+```java
+// LightTools.java — esposizione del tool
+@Singleton
+public class LightTools {
 
-## Creating a native executable
+    private final LightService lightService;
 
-You can create a native executable using:
+    @Inject
+    LightTools(LightService lightService) {
+        this.lightService = lightService;
+    }
 
-```shell script
-./mvnw package -Dnative
+    @Tool(description = "Legge stato luce")
+    String get_light_status() {
+        return lightService.getStatus();
+    }
+
+    @Tool(description = "Accende/spegne luce")
+    String set_light(@ToolArg(description = "Stato luce (on/off)") String value) {
+        return lightService.setStatus(value);
+    }
+}
 ```
 
-Or, if you don't have GraalVM installed, you can run the native executable build in a container using:
+Questa separazione permette di testare la logica di business in isolamento e di evolvere l'integrazione con il backend (es. broker MQTT) senza modificare le firme dei tool esposti.
 
-```shell script
-./mvnw package -Dnative -Dquarkus.native.container-build=true
+## Tool disponibili
+
+### Lettura (`get_`, `read_`) — usati dall'agente per le query
+
+| Nome tool | Descrizione |
+|---|---|
+| `get_temperature` | Legge temperatura da un sensore |
+| `get_humidity` | Legge umidità da un sensore |
+| `get_light_status` | Legge stato luce |
+| `get_switch_status` | Legge stato interruttore |
+| `read_sensor_status` | Legge stato generale sensore |
+| `get_power_consumption` | Legge consumo energetico |
+| `read_temperature_all` | Legge temperature di tutte le zone |
+
+### Controllo (`set_`, `exec_`) — usati dall'agente per i comandi
+
+| Nome tool | Descrizione |
+|---|---|
+| `set_light` | Accende/spegne luce |
+| `set_temperature` | Imposta temperatura |
+| `set_switch` | Attiva/disattiva interruttore |
+| `exec_command` | Esegue comando generico |
+| `exec_reset_device` | Resetta un dispositivo |
+| `set_fan_speed` | Imposta velocità ventola |
+
+### Opzionali
+
+| Nome tool | Descrizione |
+|---|---|
+| `get_device_list` | Elenca dispositivi disponibili |
+| `read_device_info` | Legge info su un dispositivo |
+
+## Configurazione
+
+La configurazione è in `src/main/resources/application.yml`:
+
+```yaml
+quarkus:
+  http:
+    port: 9100
+    cors:
+      enabled: true
+  mcp:
+    server:
+      http:
+        root-path: /mcp/v1
 ```
 
-You can then execute your native executable with: `./target/borys-mcp-server-1.0.0-SNAPSHOT-runner`
+- **Porta:** `9100`
+- **Endpoint:** `/mcp/v1` (streamable HTTP)
+- **CORS:** abilitato (per il consumo da client esterni)
 
-If you want to learn more about building native executables, please consult <https://quarkus.io/guides/maven-tooling>.
+## Avvio in modalità test (dev)
 
-## Related Guides
+Tramite la Quarkus CLI, modalità sviluppo con live reload:
 
-- REST Jackson ([guide](https://quarkus.io/guides/rest#json-serialisation)): Jackson serialization support for Quarkus REST. This extension is not compatible with the quarkus-resteasy extension, or any of the extensions that depend on it
-- YAML Configuration ([guide](https://quarkus.io/guides/config-yaml)): Use YAML to configure your Quarkus application
+```shell
+quarkus dev
+```
+
+Il server risponde su `http://localhost:9100/mcp/v1`. Il Dev UI di Quarkus è disponibile solo in questa modalità.
+
+## Avvio in modalità produzione
+
+Tramite la Quarkus CLI, compila il progetto:
+
+```shell
+quarkus build
+```
+
+Viene prodotto `target/quarkus-app/quarkus-run.jar`. Avvia il server senza la modalità dev:
+
+```shell
+quarkus run
+```
+
+## Verifica
+
+Esercita l'endpoint MCP, ad esempio con un client MCP configurato su `http://localhost:9100/mcp/v1`, oppure verifica la compilazione con `quarkus build`.
