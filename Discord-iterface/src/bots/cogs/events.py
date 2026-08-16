@@ -24,9 +24,6 @@ class EventsCog(commands.Cog):
 
 
 
-    
-    
-
 
     @commands.Cog.listener("on_message")
     async def prova(self, message):
