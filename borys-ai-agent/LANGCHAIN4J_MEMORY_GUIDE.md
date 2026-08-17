@@ -475,71 +475,187 @@ Quando usi `@RegisterAiService`, langchain4j gestisce la memoria **automaticamen
 
 ---
 
-## 11. Riepilogo: cosa serve per implementare la memoria in borys-ai-agent
+## 11. Esempio completo e spiegato (concetto puro)
 
-| Componente | Cosa fare | Priorità |
-|------------|-----------|----------|
-| `@MemoryId String sessionId` | Aggiungere ai metodi `chat()` di QueryAgent e ControllerAgent | Obbligatorio |
-| `ChatMemoryProvider` bean | Creare un `@ApplicationScoped` che torni `MessageWindowChatMemory` con 20 messaggi | Obbligatorio |
-| `application.yml` | Configurare `quarkus.langchain4j.chat-memory.memory-window.max-messages` | Consigliato |
-| `ChatMemoryStore` custom | Solo se serve persistenza (Redis/DB). Per MVP: no | Futuro |
-| `TokenWindowChatMemory` | Solo se serve precisione sui token. Per MVP: `MessageWindow` basta | Futuro |
-| `SeedMemory` | Pre-caricare la presentazione di Borys nella memoria | Opzionale |
-| `@RegisterAiService` scope | Assicurarsi che QueryAgent/ControllerAgent siano `@ApplicationScoped` (già lo sono) | Già fatto |
+### 11.1 Panoramica del flusso
 
----
+```
+Client manda { "message": "quanto costa la luce?", "sessionId": "abc-123" }
+    │
+    ▼
+Resource.chat(ChatRequest)
+    │
+    ├── agent.chat("abc-123", "quanto costa la luce?")
+    │      │
+    │      ├── LangChain4j chiama MyMemoryProvider.get("abc-123")
+    │      │      → restituisce MessageWindowChatMemory(10)
+    │      │
+    │      ├── LangChain4j aggiunge UserMessage alla memoria
+    │      │
+    │      ├── LangChain4j passa TUTTI i messaggi della memoria al LLM
+    │      │
+    │      ├── LLM risponde (usa i tool se necessario)
+    │      │
+    │      ├── LangChain4j aggiunge AiMessage alla memoria
+    │      │
+    │      └── Restituisce la risposta
+    │
+    ▼
+Response JSON: { "sessionId": "abc-123", "response": "...", "category": "OK" }
+```
 
-## 12. Esempio completo di implementazione
+### 11.2 Step 1 — Il Provider (factory della memoria)
 
 ```java
-// Provider custom
 @ApplicationScoped
-public class SessionChatMemoryProvider implements ChatMemoryProvider {
-
+public class MyMemoryProvider implements ChatMemoryProvider {
     @Override
     public ChatMemory get(Object memoryId) {
         return MessageWindowChatMemory.builder()
             .id(memoryId)
-            .maxMessages(20)
+            .maxMessages(10)
             .build();
     }
 }
+```
 
-// Agent aggiunto con @MemoryId
+**Cosa fa:** è una factory. Ogni volta che un agente con `@MemoryId` viene chiamato con un nuovo ID, langchain4j invoca `get()` qui e riceve una memoria vuota da 10 messaggi.
+
+**Perché `@ApplicationScoped`:** il bean vive per tutta la durata dell'applicazione. La memoria non viene cancellata alla fine di ogni HTTP request (come succederebbe con `@RequestScoped`).
+
+**Perché non devi iniettarla da nessuna parte:** CDI la scopre automaticamente perché è annotata con `@ApplicationScoped`. LangChain4j la trova nel contesto e la usa per tutti gli agenti che hanno `@MemoryId`.
+
+### 11.3 Step 2 — L'Agente (usa la memoria)
+
+```java
 @RegisterAiService
-@ApplicationScoped
-public interface QueryAgent {
+@Singleton
+public interface MyAgent {
 
-    @SystemMessage("""
-        Sei un assistente specializzato nella lettura di dati da dispositivi IoT.
-        Usa SOLO tool che iniziano con "get_" o "read_".
-        Rispondi in modo chiaro e conciso.
-    """)
-    @McpToolBox("borysmcp")
+    // Questo metodo HA memoria — serve per conversazioni multi-turn
     String chat(@MemoryId String sessionId, @UserMessage String message);
+    //            ^^^^^^^^                ^^^^^^^^^^^^
+    //            chiave della memoria     messaggio dell'utente
 }
+```
 
-// Controller che passa il sessionId
+**Perché `@MemoryId`:** è l'annotazione che dice a langchain4j "questo parametro è la chiave della memoria". Senza di essa, ogni chiamata sarebbe stateless.
+
+**Quando metterlo e quando no:**
+- Metti `@MemoryId` ai metodi che rispondono all'utente e devono ricordare il contesto (es. `chat()`, `resolvRequest()`)
+- NON metterlo ai metodi che classificano o fanno una sola operazione (es. `findeCategory()`, `sendYourName()`)
+
+### 11.4 Step 3 — Le DTO (richiesta e risposta)
+
+```java
+public record ChatRequest(String message, String sessionId) {}
+public record ChatResponse(String sessionId, String response, String category) {}
+```
+
+**Perché record e non classe:** i DTO sono container di dati immutabili. Il record genera automaticamente costruttore, getter, equals, hashCode, toString. Zero boilerplate.
+
+### 11.5 Step 4 — L'Endpoint (collega tutto)
+
+```java
 @Path("/api/")
-@Produces(MediaType.APPLICATION_JSON)
-@Consumes(MediaType.APPLICATION_JSON)
-public class RestController {
+public class ChatResource {
 
-    @Inject QueryAgent queryAgent;
+    @Inject MyAgent agent;
 
     @POST
-    @Path("chat/json")
+    @Path("chat")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Consumes(MediaType.APPLICATION_JSON)
     public Response chat(ChatRequest request) {
-        String sessionId = request.sessionId() != null 
-            ? request.sessionId() 
+
+        String userId = request.sessionId() != null
+            ? request.sessionId()
             : UUID.randomUUID().toString();
-        
-        String response = queryAgent.chat(sessionId, request.message());
-        
-        return Response.ok(new ChatResponse(sessionId, response)).build();
+
+        String response = agent.chat(userId, request.message());
+
+        return Response.ok(new ChatResponse(userId, response, "OK")).build();
     }
 }
 ```
+
+**Punti chiave:**
+- `userId` è la chiave della memoria — ogni utente ha la sua storia separata
+- `agent.chat(userId, message)` — il primo parametro è il `@MemoryId`, langchain4j lo usa per trovare la memoria giusta
+- Se il client non manda `sessionId`, ne generiamo uno con UUID
+
+### 11.6 Come funziona la memoria nella pratica
+
+**Chiamata 1:**
+```json
+POST /api/chat
+{ "message": "ciao, presentati!", "sessionId": "user-123" }
+```
+1. `agent.chat("user-123", "ciao, presentati!")`
+2. LangChain4j crea memoria per "user-123"
+3. Memoria: `[UserMessage("ciao, presentati!")]`
+4. LLM risponde: "Ciao! Sono un assistente AI."
+5. Memoria: `[UserMessage("ciao, presentati!"), AiMessage("Ciao! Sono un assistente AI.")]`
+
+**Chiamata 2 (stesso utente):**
+```json
+POST /api/chat
+{ "message": "e dimmi di più", "sessionId": "user-123" }
+```
+1. `agent.chat("user-123", "e dimmi di più")`
+2. LangChain4j trova la memoria di "user-123"
+3. Memoria: `[UserMessage("ciao, presentati!"), AiMessage("Ciao! Sono un assistente AI."), UserMessage("e dimmi di più")]`
+4. LLM vede TUTTO il contesto e risponde in modo coerente
+
+**Chiamata 3 (utente diverso):**
+```json
+POST /api/chat
+{ "message": "ciao!", "sessionId": "user-456" }
+```
+1. LangChain4j crea memoria separata per "user-456"
+2. Il LLM non vede nulla della conversazione di "user-123"
+
+### 11.7 Riepilogo componenti
+
+| Componente | Cosa fa |
+|------------|---------|
+| `MyMemoryProvider` | Factory: crea una `MessageWindowChatMemory` da N messaggi per ogni sessionId |
+| `@MemoryId` | Dice a langchain4j di usare la memoria e con quale chiave |
+| `ChatRequest` | DTO: contiene `message` e `sessionId` dal client |
+| `ChatResponse` | DTO: contiene `sessionId`, `response` e `category` per il client |
+| `ChatResource` | Riceve la richiesta, passa il sessionId all'agente, restituisce JSON |
+
+---
+
+## 12. Link alle guide ufficiali
+
+### LangChain4j (core)
+| Risorsa | Link |
+|---------|------|
+| Chat Memory — Tutorial | https://docs.langchain4j.dev/tutorials/chat-memory/ |
+| ChatMemory — Javadoc | https://docs.langchain4j.dev/apidocs/dev/langchain4j/memory/ChatMemory.html |
+| MessageWindowChatMemory — Javadoc | https://docs.langchain4j.dev/apidocs/dev/langchain4j/memory/chat/MessageWindowChatMemory.html |
+| TokenWindowChatMemory — Javadoc | https://docs.langchain4j.dev/apidocs/dev/langchain4j/memory/chat/TokenWindowChatMemory.html |
+| ChatMemoryProvider — Javadoc | https://docs.langchain4j.dev/apidocs/dev/langchain4j/memory/chat/ChatMemoryProvider.html |
+| ChatMemoryStore — Javadoc | https://docs.langchain4j.dev/apidocs/dev/langchain4j/memory/ChatMemoryStore.html |
+| AI Services — Tutorial | https://docs.langchain4j.dev/tutorials/ai-services/ |
+| @MemoryId e multi-session | https://docs.langchain4j.dev/tutorials/ai-services#memoryid |
+| Fonte su GitHub (chat-memory.md) | https://github.com/langchain4j/langchain4j/blob/main/docs/docs/tutorials/chat-memory.md |
+
+### Quarkus LangChain4j
+| Risorsa | Link |
+|---------|------|
+| Messages and Memory (Quarkus) | https://docs.quarkiverse.io/quarkus-langchain4j/dev/messages-and-memory.html |
+| AI Services Reference (Quarkus) | https://docs.quarkiverse.io/quarkus-langchain4j/dev/ai-services.html |
+| Chat Memory config | https://docs.quarkiverse.io/quarkus-langchain4j/dev/messages-and-memory.html#_chat_memory_management |
+| @MemoryId in Quarkus | https://docs.quarkiverse.io/quarkus-langchain4j/dev/messages-and-memory.html#_memoryid_multi_session_memory |
+| @RegisterAiService Javadoc | https://github.com/quarkiverse/quarkus-langchain4j/blob/main/core/runtime/src/main/java/io/quarkiverse/langchain4j/RegisterAiService.java |
+
+### Articoli utili
+| Risorsa | Link |
+|---------|------|
+| Managing Chat Memory in Quarkus Langchain4j (Bill Burke) | https://bill.burkecentral.com/2025/11/25/managing-chat-memory-in-quarkus-langchain4j/ |
+| Quarkus Langchain4j Chat Memory Budget | https://www.the-main-thread.com/p/quarkus-langchain4j-chat-memory-budget |
 
 ---
 
