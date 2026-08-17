@@ -2,6 +2,7 @@ package com.agents;
 
 import com.Tools.NameTool;
 
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
@@ -31,7 +32,7 @@ public interface RouterAgent {
     """)
 
     CategoryCustom findeCategory(@UserMessage String message);
-    String resolvRequest(@UserMessage String message);
+    String resolvRequest(@MemoryId String sessionId,@UserMessage String message);
 
 
     @SystemMessage("""

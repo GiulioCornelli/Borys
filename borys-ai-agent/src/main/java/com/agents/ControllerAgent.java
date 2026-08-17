@@ -1,5 +1,6 @@
 package com.agents;
 
+import dev.langchain4j.service.MemoryId;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
@@ -17,5 +18,5 @@ public interface ControllerAgent {
         Rispondi in modo chiaro e conciso.
     """)
     @McpToolBox("borysmcp")
-    String chat(@UserMessage String message);
+    String chat(@MemoryId String sessionId, @UserMessage String message);
 }
