@@ -48,3 +48,6 @@ Thumbs.db
 # Quarkus
 
 .quarkus
+
+# Test locale
+test/
