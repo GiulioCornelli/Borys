@@ -1,0 +1,70 @@
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: borys_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ai-network
+
+  # --- Servizi commentati (da abilitare in produzione) ---
+
+  # emqx1:
+  #   image: emqx:latest
+  #   container_name: emqx_broker1
+  #   environment:
+  #     EMQX_NODE__NAME: "emqx1@emqx_broker1"
+  #     EMQX_DASHBOARD__DEFAULT_USERNAME: "${EMQX_ADMIN_USER}"
+  #     EMQX_DASHBOARD__DEFAULT_PASSWORD: "${EMQX_ADMIN_PASSWORD}"
+  #   ports:
+  #     - "1883:1883"
+  #     - "8883:8883"
+  #     - "18083:18083"
+  #   networks:
+  #     - emqx-network
+
+  # pg:
+  #   image: postgres:latest
+  #   container_name: postDB
+  #   environment:
+  #     POSTGRES_USER: admin
+  #     POSTGRES_PASSWORD: pippo123
+  #     POSTGRES_DB: BorysDB
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - backend
+
+volumes:
+  ollama_data:
+    name: borys_ollama_data
+    driver: local
+
+  # postgres_data:
+  #   name: borys_pg_data
+  #   driver: local
+
+  # emqx_data:
+  #   name: borys_emqx_data
+  #   driver: local
+
+networks:
+  ai-network:
+    driver: bridge
+    internal: true
+
+  # backend:
+  #   driver: bridge
+  #   ipam:
+  #     config:
+  #       - subnet: "192.168.10.0/24"
+  #       - gateway: "192.168.10.1"
+
+  # emqx-network:
+  #   driver: bridge
+  
