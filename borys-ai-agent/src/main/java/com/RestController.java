@@ -15,7 +15,6 @@ import java.util.UUID;
 
 
 @Path("/api/")  
-
 public class RestController {
 
     @Inject RouterAgent routerAgent;
